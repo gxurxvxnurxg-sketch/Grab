@@ -18,7 +18,7 @@ class GrabApplication : Application(), Configuration.Provider {
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
-            .setMinimumLoggingLevel(if (BuildConfig.DEBUG) Log.DEBUG else Log.WARN)
+            .setMinimumLoggingLevel(Log.WARN)
             .build()
 
     override fun onCreate() {

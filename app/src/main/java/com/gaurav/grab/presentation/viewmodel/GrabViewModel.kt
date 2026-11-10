@@ -40,12 +40,12 @@ class GrabViewModel @Inject constructor(private val analyzeUrlUseCase: AnalyzeUr
     fun clearToast() = _uiState.update { it.copy(statusMessage = null) }
     fun setNotifPerm(g: Boolean) = _uiState.update { it.copy(hasNotifPermission = g) }
 
-    fun setTheme(m: String) = persist { it.copy(themeMode = m) }
-    fun setNotifications(on: Boolean) = persist { it.copy(notificationsEnabled = on) }
-    fun setTurboThreads(n: Int) = persist { it.copy(turboThreads = n) }
-    fun setWifiOnly(on: Boolean) = persist { it.copy(wifiOnly = on) }
-    fun setAutoWeeklyUpdate(on: Boolean) = persist { it.copy(autoWeeklyUpdate = on) }
-    fun toggleBraveShield() = persist { it.copy(adShield = !it.adShield) }
+    fun setTheme(m: String) = persist { copy(themeMode = m) }
+    fun setNotifications(on: Boolean) = persist { copy(notificationsEnabled = on) }
+    fun setTurboThreads(n: Int) = persist { copy(turboThreads = n) }
+    fun setWifiOnly(on: Boolean) = persist { copy(wifiOnly = on) }
+    fun setAutoWeeklyUpdate(on: Boolean) = persist { copy(autoWeeklyUpdate = on) }
+    fun toggleBraveShield() = persist { copy(adShield = !adShield) }
     
     private fun persist(transform: GrabSettings.() -> GrabSettings) { viewModelScope.launch { runCatching { manageDownloadsUseCase.saveSettings(transform) } } }
 }
