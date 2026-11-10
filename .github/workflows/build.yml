@@ -19,13 +19,15 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
-      - name: Setup Gradle
+      - name: Setup Gradle Wrapper
         run: |
-          # If gradlew is missing, generate it using Gradle 8.7 (perfect for AGP 8.5.2)
           if [ ! -f ./gradlew ]; then
             echo "Generating Gradle Wrapper (v8.7)..."
             mkdir -p /tmp/gradle-gen && cd /tmp/gradle-gen
+            # Create a dummy file so Gradle 9 allows the wrapper task to run
+            touch settings.gradle 
             gradle wrapper --gradle-version 8.7
+            # Copy the generated wrapper back to your project
             cp -a gradle gradlew gradlew.bat "$GITHUB_WORKSPACE/"
             cd "$GITHUB_WORKSPACE"
           fi
@@ -48,4 +50,4 @@ jobs:
         with:
           name: Grab-Release-APK
           path: |
-            app/build/outputs/apk/release/*.apk
+            **/build/outputs/apk/release/*.apk
