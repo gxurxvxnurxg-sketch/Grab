@@ -36,6 +36,12 @@ interface DownloadDao {
 
     @Query("UPDATE downloads SET progress = :progress, status = :status, filePath = :filePath WHERE workId = :workId")
     suspend fun updateState(workId: String, progress: Int, status: String, filePath: String = "")
+
+    @Query("DELETE FROM downloads WHERE id = :id")
+    suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM downloads")
+    suspend fun clearAll()
 }
 
 @Database(entities = [DownloadEntity::class], version = 1, exportSchema = false)

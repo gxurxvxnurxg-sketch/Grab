@@ -2,10 +2,10 @@ package com.gaurav.grab.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.gaurav.grab.domain.model.DownloadError
 import com.gaurav.grab.domain.model.DownloadRecord
 import com.gaurav.grab.domain.model.FormatOption
 import com.gaurav.grab.domain.model.MediaInfo
+import com.gaurav.grab.domain.model.PlatformSpec
 import com.gaurav.grab.domain.model.Result
 import com.gaurav.grab.domain.usecase.AnalyzeUrlUseCase
 import com.gaurav.grab.domain.usecase.EnqueueDownloadUseCase
@@ -24,10 +24,16 @@ data class GrabUiState(
     val urlInput: String = "",
     val isAnalyzing: Boolean = false,
     val analyzedMedia: MediaInfo? = null,
-    val errorBanner: String? = null,
-    val requiresLogin: Boolean = false,
-    val hasValidCookies: Boolean = false,
-    val filterTab: String = "ALL" // ALL, RUNNING, SUCCEEDED
+    val statusMessage: String? = null,
+    val filterTab: String = "ALL",
+    val themeMode: String = "DARK",
+    val turboThreads: Int = 16,
+    val braveAdShield: Boolean = true,
+    val autoWeeklyUpdate: Boolean = true,
+    val activeBrowserUrl: String? = null,
+    val selectedPlatformHub: PlatformSpec? = null,
+    val showPlaylistDialog: Boolean = false,
+    val showAllPlatformsSheet: Boolean = false
 )
 
 @HiltViewModel
@@ -37,38 +43,63 @@ class GrabViewModel @Inject constructor(
     private val manageDownloadsUseCase: ManageDownloadsUseCase
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(GrabUiState(hasValidCookies = manageDownloadsUseCase.hasCookies()))
+    private val _uiState = MutableStateFlow(GrabUiState())
     val uiState: StateFlow<GrabUiState> = _uiState.asStateFlow()
 
     val downloads: StateFlow<List<DownloadRecord>> = manageDownloadsUseCase.downloadsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun onUrlChanged(newUrl: String) {
-        _uiState.update { it.copy(urlInput = newUrl, errorBanner = null, requiresLogin = false) }
+        _uiState.update { it.copy(urlInput = newUrl, statusMessage = null) }
     }
 
     fun onFilterChanged(tab: String) {
         _uiState.update { it.copy(filterTab = tab) }
     }
 
-    fun analyzeCurrentUrl() {
-        val target = _uiState.value.urlInput
+    fun setThemeMode(mode: String) {
+        _uiState.update { it.copy(themeMode = mode) }
+    }
+
+    fun toggleBraveShield() {
+        _uiState.update { it.copy(braveAdShield = !it.braveAdShield) }
+    }
+
+    fun togglePlaylistDialog(show: Boolean) {
+        _uiState.update { it.copy(showPlaylistDialog = show) }
+    }
+
+    fun toggleAllPlatformsSheet(show: Boolean) {
+        _uiState.update { it.copy(showAllPlatformsSheet = show) }
+    }
+
+    fun selectPlatformHub(platform: PlatformSpec?) {
+        _uiState.update { it.copy(selectedPlatformHub = platform) }
+    }
+
+    fun openInAppBrowser(url: String?) {
+        _uiState.update { it.copy(activeBrowserUrl = url, selectedPlatformHub = null) }
+    }
+
+    fun analyzeUrl(customUrl: String? = null, isPlaylist: Boolean = false) {
+        val target = (customUrl ?: _uiState.value.urlInput).trim()
+        if (target.isBlank()) return
         viewModelScope.launch {
-            _uiState.update { it.copy(isAnalyzing = true, errorBanner = null, analyzedMedia = null) }
-            when (val res = analyzeUrlUseCase(target)) {
+            _uiState.update {
+                it.copy(
+                    urlInput = target,
+                    isAnalyzing = true,
+                    statusMessage = null,
+                    analyzedMedia = null,
+                    showPlaylistDialog = false
+                )
+            }
+            when (val res = analyzeUrlUseCase(target, isPlaylist)) {
                 is Result.Success -> {
                     _uiState.update { it.copy(isAnalyzing = false, analyzedMedia = res.data) }
                 }
                 is Result.Error -> {
-                    _uiState.update {
-                        it.copy(
-                            isAnalyzing = false,
-                            requiresLogin = res.error == DownloadError.AUTH_REQUIRED,
-                            errorBanner = if (res.error == DownloadError.AUTH_REQUIRED)
-                                "Authentication required. Import cookies.txt or sign in via Settings."
-                            else res.details
-                        )
-                    }
+                    _uiState.update { it.copy(isAnalyzing = false, statusMessage = res.details) }
                 }
             }
         }
@@ -78,7 +109,13 @@ class GrabViewModel @Inject constructor(
         val media = _uiState.value.analyzedMedia ?: return
         viewModelScope.launch {
             enqueueDownloadUseCase(media, format)
-            _uiState.update { it.copy(analyzedMedia = null, urlInput = "") }
+            _uiState.update {
+                it.copy(
+                    analyzedMedia = null,
+                    urlInput = "",
+                    statusMessage = "Download started: ${media.title}"
+                )
+            }
         }
     }
 
@@ -87,15 +124,25 @@ class GrabViewModel @Inject constructor(
     }
 
     fun cancelDownload(workId: String) {
+        viewModelScope.launch { manageDownloadsUseCase.cancel(workId) }
+    }
+
+    fun removeHistoryItem(id: Long) {
+        viewModelScope.launch { manageDownloadsUseCase.deleteRecord(id) }
+    }
+
+    fun clearAllHistory() {
+        viewModelScope.launch { manageDownloadsUseCase.clearAll() }
+    }
+
+    fun triggerExtractorUpdate() {
         viewModelScope.launch {
-            manageDownloadsUseCase.cancel(workId)
+            val msg = manageDownloadsUseCase.updateEngine()
+            _uiState.update { it.copy(statusMessage = msg) }
         }
     }
 
-    fun saveCookies(netscapeContent: String) {
-        viewModelScope.launch {
-            manageDownloadsUseCase.saveCookies(netscapeContent)
-            _uiState.update { it.copy(hasValidCookies = manageDownloadsUseCase.hasCookies(), requiresLogin = false) }
-        }
+    fun showToastMessage(msg: String) {
+        _uiState.update { it.copy(statusMessage = msg) }
     }
 }

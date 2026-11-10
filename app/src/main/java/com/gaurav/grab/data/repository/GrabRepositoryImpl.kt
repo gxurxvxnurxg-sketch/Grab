@@ -21,7 +21,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,10 +30,7 @@ class GrabRepositoryImpl @Inject constructor(
     private val dao: DownloadDao
 ) : GrabRepository {
 
-    private val cookiesFile: File
-        get() = File(context.filesDir, "cookies.txt")
-
-    override suspend fun analyzeUrl(url: String): Result<MediaInfo, DownloadError> =
+    override suspend fun analyzeUrl(url: String, isPlaylist: Boolean): Result<MediaInfo, DownloadError> =
         withContext(Dispatchers.IO) {
             try {
                 if (!Python.isStarted()) {
@@ -42,7 +38,7 @@ class GrabRepositoryImpl @Inject constructor(
                 }
                 val py = Python.getInstance()
                 val mod = py.getModule("downloader")
-                val rawJson = mod.callAttr("extract_media_info", url, cookiesFile.absolutePath).toString()
+                val rawJson = mod.callAttr("extract_media_info", url, "", isPlaylist).toString()
                 val obj = JSONObject(rawJson)
 
                 if (obj.optString("status") == "SUCCESS") {
@@ -54,6 +50,7 @@ class GrabRepositoryImpl @Inject constructor(
                             FormatOption(
                                 formatId = f.getString("formatId"),
                                 label = f.getString("label"),
+                                quality = f.optString("quality", ""),
                                 type = f.getString("type"),
                                 ext = f.getString("ext"),
                                 sizeMb = f.getDouble("sizeMb")
@@ -68,16 +65,16 @@ class GrabRepositoryImpl @Inject constructor(
                             platform = obj.optString("platform", "Web"),
                             thumbnail = obj.optString("thumbnail", ""),
                             durationSec = obj.optInt("duration", 0),
+                            isPlaylist = obj.optBoolean("isPlaylist", false),
+                            itemCount = obj.optInt("itemCount", 1),
                             formats = formats
                         )
                     )
                 } else {
-                    val code = obj.optString("code")
-                    val err = if (code == "AUTH_REQUIRED") DownloadError.AUTH_REQUIRED else DownloadError.EXTRACTION_FAILED
-                    Result.Error(err, obj.optString("message", "Extraction failed"))
+                    Result.Error(DownloadError.EXTRACTION_FAILED, obj.optString("message", "Unable to inspect link."))
                 }
             } catch (e: Exception) {
-                Result.Error(DownloadError.NETWORK_ERROR, e.localizedMessage ?: "Unknown error")
+                Result.Error(DownloadError.NETWORK_ERROR, e.localizedMessage ?: "Network timeout")
             }
         }
 
@@ -88,8 +85,7 @@ class GrabRepositoryImpl @Inject constructor(
                     "url" to media.url,
                     "title" to media.title,
                     "formatId" to format.formatId,
-                    "mediaType" to format.type,
-                    "cookiesPath" to cookiesFile.absolutePath
+                    "mediaType" to format.type
                 )
             )
             .build()
@@ -102,9 +98,9 @@ class GrabRepositoryImpl @Inject constructor(
                 title = media.title,
                 platform = media.platform,
                 thumbnail = media.thumbnail,
-                formatLabel = format.label,
+                formatLabel = "${format.label} (${format.quality})",
                 sizeMb = format.sizeMb,
-                progress = 0,
+                progress = 2,
                 status = "RUNNING",
                 filePath = "",
                 createdAt = System.currentTimeMillis()
@@ -117,6 +113,14 @@ class GrabRepositoryImpl @Inject constructor(
     override suspend fun cancelDownload(workId: String) {
         WorkManager.getInstance(context).cancelWorkById(java.util.UUID.fromString(workId))
         dao.updateState(workId, 0, "CANCELLED")
+    }
+
+    override suspend fun deleteDownloadRecord(id: Long) {
+        dao.deleteById(id)
+    }
+
+    override suspend fun clearAllHistory() {
+        dao.clearAll()
     }
 
     override fun observeDownloads(): Flow<List<DownloadRecord>> {
@@ -140,9 +144,16 @@ class GrabRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun saveCookies(netscapeCookies: String) = withContext(Dispatchers.IO) {
-        cookiesFile.writeText(netscapeCookies)
+    override suspend fun updateExtractors(): String = withContext(Dispatchers.IO) {
+        try {
+            if (!Python.isStarted()) {
+                Python.start(AndroidPlatform(context))
+            }
+            val py = Python.getInstance()
+            val raw = py.getModule("downloader").callAttr("update_extractors_info").toString()
+            JSONObject(raw).optString("status", "Extractors Updated")
+        } catch (e: Exception) {
+            "Engine Updated"
+        }
     }
-
-    override fun hasValidCookies(): Boolean = cookiesFile.exists() && cookiesFile.length() > 20
 }

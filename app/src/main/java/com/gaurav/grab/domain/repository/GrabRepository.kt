@@ -8,10 +8,11 @@ import com.gaurav.grab.domain.model.Result
 import kotlinx.coroutines.flow.Flow
 
 interface GrabRepository {
-    suspend fun analyzeUrl(url: String): Result<MediaInfo, DownloadError>
+    suspend fun analyzeUrl(url: String, isPlaylist: Boolean = false): Result<MediaInfo, DownloadError>
     suspend fun enqueueDownload(media: MediaInfo, format: FormatOption): String
     suspend fun cancelDownload(workId: String)
+    suspend fun deleteDownloadRecord(id: Long)
+    suspend fun clearAllHistory()
     fun observeDownloads(): Flow<List<DownloadRecord>>
-    suspend fun saveCookies(netscapeCookies: String)
-    fun hasValidCookies(): Boolean
+    suspend fun updateExtractors(): String
 }

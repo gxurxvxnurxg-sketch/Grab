@@ -10,11 +10,12 @@ import javax.inject.Inject
 class AnalyzeUrlUseCase @Inject constructor(
     private val repository: GrabRepository
 ) {
-    suspend operator fun invoke(url: String): Result<MediaInfo, DownloadError> {
-        if (url.isBlank() || !url.startsWith("http")) {
-            return Result.Error(DownloadError.EXTRACTION_FAILED, "Please paste a valid http/https link.")
+    suspend operator fun invoke(url: String, isPlaylist: Boolean = false): Result<MediaInfo, DownloadError> {
+        val clean = url.trim()
+        if (clean.isBlank()) {
+            return Result.Error(DownloadError.EXTRACTION_FAILED, "Please paste a valid media link.")
         }
-        return repository.analyzeUrl(url.trim())
+        return repository.analyzeUrl(clean, isPlaylist)
     }
 }
 
@@ -31,6 +32,7 @@ class ManageDownloadsUseCase @Inject constructor(
 ) {
     val downloadsFlow = repository.observeDownloads()
     suspend fun cancel(workId: String) = repository.cancelDownload(workId)
-    suspend fun saveCookies(content: String) = repository.saveCookies(content)
-    fun hasCookies(): Boolean = repository.hasValidCookies()
+    suspend fun deleteRecord(id: Long) = repository.deleteDownloadRecord(id)
+    suspend fun clearAll() = repository.clearAllHistory()
+    suspend fun updateEngine(): String = repository.updateExtractors()
 }
