@@ -1,4 +1,4 @@
-name: Grab Android CI/CD Pipeline
+name: Build Android APK
 
 on:
   push:
@@ -6,29 +6,26 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source Code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup JDK 17
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: gradle
 
-      - name: Generate Gradle Wrapper if Missing
+      - name: Setup Gradle
         run: |
+          # If gradlew is missing, generate it using Gradle 8.7 (perfect for AGP 8.5.2)
           if [ ! -f ./gradlew ]; then
-            GV=8.14.3
-            if [ -f gradle/wrapper/gradle-wrapper.properties ]; then
-              GV=$(sed -nE 's|.*gradle-([0-9]+(\.[0-9]+)*).*|\1|p' gradle/wrapper/gradle-wrapper.properties | head -n1)
-              [ -z "$GV" ] && GV=8.14.3
-            fi
-            echo "Generating wrapper with Gradle $GV"
-            mkdir -p /tmp/wrapgen && cd /tmp/wrapgen
-            gradle wrapper --gradle-version "$GV"
+            echo "Generating Gradle Wrapper (v8.7)..."
+            mkdir -p /tmp/gradle-gen && cd /tmp/gradle-gen
+            gradle wrapper --gradle-version 8.7
             cp -a gradle gradlew gradlew.bat "$GITHUB_WORKSPACE/"
             cd "$GITHUB_WORKSPACE"
           fi
@@ -38,7 +35,7 @@ jobs:
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > release-keystore.jks
 
-      - name: Build Signed Release APK
+      - name: Build Release APK
         run: |
           ./gradlew assembleRelease \
             -Pandroid.injected.signing.store.file=$GITHUB_WORKSPACE/release-keystore.jks \
@@ -51,4 +48,4 @@ jobs:
         with:
           name: Grab-Release-APK
           path: |
-            **/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/release/*.apk
