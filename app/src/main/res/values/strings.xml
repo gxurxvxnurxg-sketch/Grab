@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Grab</string>
+    <string name="notif_channel_progress">Active Downloads</string>
+    <string name="notif_channel_done">Download Alerts</string>
+</resources>

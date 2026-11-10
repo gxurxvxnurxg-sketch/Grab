@@ -1,10 +1,6 @@
 package com.gaurav.grab.domain.repository
 
-import com.gaurav.grab.domain.model.DownloadError
-import com.gaurav.grab.domain.model.DownloadRecord
-import com.gaurav.grab.domain.model.FormatOption
-import com.gaurav.grab.domain.model.MediaInfo
-import com.gaurav.grab.domain.model.Result
+import com.gaurav.grab.domain.model.*
 import kotlinx.coroutines.flow.Flow
 
 interface GrabRepository {
@@ -14,5 +10,7 @@ interface GrabRepository {
     suspend fun deleteDownloadRecord(id: Long)
     suspend fun clearAllHistory()
     fun observeDownloads(): Flow<List<DownloadRecord>>
+    fun observeSettings(): Flow<GrabSettings>
+    suspend fun saveSettings(transform: GrabSettings.() -> GrabSettings)
     suspend fun updateExtractors(): String
 }
